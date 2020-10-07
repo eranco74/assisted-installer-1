@@ -14,7 +14,6 @@ import (
 
 	"github.com/openshift/assisted-installer/src/k8s_client"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/openshift/assisted-installer/src/config"
@@ -28,7 +27,7 @@ const (
 	InstallDir                  = "/opt/install-dir"
 	KubeconfigPathLoopBack      = "/opt/openshift/auth/kubeconfig-loopback"
 	KubeconfigPath              = "/opt/openshift/auth/kubeconfig"
-	minMasterNodes              = 2
+	minMasterNodes              = 1
 	dockerConfigFile            = "/root/.docker/config.json"
 	assistedControllerPrefix    = "assisted-installer-controller"
 	assistedControllerNamespace = "assisted-installer"
@@ -84,17 +83,8 @@ func (i *installer) InstallNode() error {
 		i.log.Errorf("Failed to create install dir: %s", err)
 		return err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	errs, _ := errgroup.WithContext(ctx)
-	//cancel the context in case this method ends
-	defer cancel()
-	isBootstrap := false
 	if i.Config.Role == string(models.HostRoleBootstrap) {
-		isBootstrap = true
-		errs.Go(func() error {
-			return i.runBootstrap(ctx)
-		})
-		i.Config.Role = string(models.HostRoleMaster)
+		return i.runBootstrap(context.Background())
 	}
 
 	i.UpdateHostInstallProgress(models.HostStageInstalling, i.Config.Role)
@@ -121,17 +111,10 @@ func (i *installer) InstallNode() error {
 	} else {
 		i.log.Info("Done writing image to disk")
 	}
-	if isBootstrap {
-		i.UpdateHostInstallProgress(models.HostStageWaitingForControlPlane, "")
-		if err = errs.Wait(); err != nil {
-			i.log.Error(err)
-			return err
-		}
-	}
 	i.UpdateHostInstallProgress(models.HostStageRebooting, "")
-	_, err = i.ops.UploadInstallationLogs(isBootstrap)
+	_, err = i.ops.UploadInstallationLogs(false)
 	if err != nil {
-		i.log.Errorf("upload installation logs %s", err)
+		i.log.Errorf("Upload installation logs %s", err)
 	}
 	if err = i.ops.Reboot(); err != nil {
 		return err
@@ -156,10 +139,17 @@ func (i *installer) runBootstrap(ctx context.Context) error {
 		i.log.Error(err)
 		return err
 	}
+	i.UpdateHostInstallProgress(models.HostStageWaitingForControlPlane, "")
 	if err = i.waitForControlPlane(ctx, kc); err != nil {
 		return err
 	}
-	i.log.Info("Setting bootstrap node new role to master")
+	i.log.Info("Done running bootstrap")
+	_, err = i.ops.UploadInstallationLogs(true)
+	if err != nil {
+		i.log.Errorf("Upload installation logs %s", err)
+	}
+
+	i.UpdateHostInstallProgress(models.HostStageDone, "")
 	return nil
 }
 
@@ -247,6 +237,11 @@ func (i *installer) waitForControlPlane(ctx context.Context, kc k8s_client.K8SCl
 	i.waitForMasterNodes(ctx, minMasterNodes, kc)
 
 	if err := kc.PatchEtcd(); err != nil {
+		i.log.Error(err)
+		return err
+	}
+
+	if err := kc.PatchAuthentication(); err != nil {
 		i.log.Error(err)
 		return err
 	}

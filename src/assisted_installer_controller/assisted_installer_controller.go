@@ -212,11 +212,6 @@ func (c controller) postInstallConfigs() error {
 		return errors.Errorf("Timeout while waiting router ca data")
 	}
 
-	err = utils.WaitForPredicate(WaitTimeout, GeneralWaitInterval, c.unpatchEtcd)
-	if err != nil {
-		return errors.Errorf("Timeout while trying to unpatch etcd")
-	}
-
 	err = utils.WaitForPredicate(WaitTimeout, GeneralWaitInterval, c.validateConsolePod)
 	if err != nil {
 		return errors.Errorf("Timeout while waiting for console pod to be running")
@@ -298,15 +293,6 @@ func (c controller) unmarshalStatusAnnotation(content []byte) (*metal3v1alpha1.B
 		return nil, err
 	}
 	return bmhStatus, nil
-}
-
-func (c controller) unpatchEtcd() bool {
-	c.log.Infof("Unpatching etcd")
-	if err := c.kc.UnPatchEtcd(); err != nil {
-		c.log.Error(err)
-		return false
-	}
-	return true
 }
 
 // AddRouterCAToClusterCA adds router CA to cluster CA in kubeconfig
