@@ -13,7 +13,7 @@ var getOpenshiftMapping = func(openshiftVersion string) map[string]string {
 		"4.5": {
 			mco: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:58bed0f5c4fbe453b994f6b606fefe3e2aaf1d10dcbdf5debb73b93007c7bee5"}, // MCO from latest 4.5 nightly https://mirror.openshift.com/pub/openshift-v4/clients/ocp-dev-preview/4.5.0-0.nightly-2020-05-14-021132/
 		"4.6": {
-			mco: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:dc1a34f55c712b2b9c5e5a14dd85e67cbdae11fd147046ac2fef9eaf179ab221"},
+			mco: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:8923050603588c27d79b33b371afb651288470d5cdeb14f8e10249bca1a1c461"},
 	}
 
 	return openshiftVersionMap[openshiftVersion]
